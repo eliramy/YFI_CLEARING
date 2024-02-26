@@ -1,0 +1,175 @@
+FUNCTION yfi_clearing.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     REFERENCE(I_AUGLV) LIKE  T041A-AUGLV
+*"     REFERENCE(I_TCODE) LIKE  SY-TCODE
+*"  EXPORTING
+*"     REFERENCE(E_MSGID) LIKE  SY-MSGID
+*"     REFERENCE(E_MSGNO) LIKE  SY-MSGNO
+*"     REFERENCE(E_MSGTY) LIKE  SY-MSGTY
+*"     REFERENCE(E_MSGV1) LIKE  SY-MSGV1
+*"     REFERENCE(E_MSGV2) LIKE  SY-MSGV2
+*"     REFERENCE(E_MSGV3) LIKE  SY-MSGV3
+*"     REFERENCE(E_MSGV4) LIKE  SY-MSGV4
+*"     REFERENCE(E_SUBRC) LIKE  SY-SUBRC
+*"  TABLES
+*"      IT_BLNTAB STRUCTURE  BLNTAB
+*"      IT_FTCLEAR STRUCTURE  FTCLEAR
+*"      IT_FTPOST STRUCTURE  FTPOST
+*"      IT_FTTAX STRUCTURE  FTTAX
+*"  EXCEPTIONS
+*"      CLEARING_PROCEDURE_INVALID
+*"      CLEARING_PROCEDURE_MISSING
+*"      TABLE_T041A_EMPTY
+*"      TRANSACTION_CODE_INVALID
+*"      AMOUNT_FORMAT_ERROR
+*"      TOO_MANY_LINE_ITEMS
+*"      COMPANY_CODE_INVALID
+*"      SCREEN_NOT_FOUND
+*"      NO_AUTHORIZATION
+*"      CLIENT_INCORRECT
+*"      FUNCTION_INVALID
+*"      GROUP_NAME_MISSING
+*"      MODE_INVALID
+*"      UPDATE_INVALID
+*"      USER_INVALID
+*"      SESSION_NOT_PROCESSABLE
+*"----------------------------------------------------------------------
+
+  DATA:
+    lv_mode TYPE rfpdo-allgazmd VALUE 'N'.
+
+*1.Start of call transaction: SHDB.
+  CALL FUNCTION 'POSTING_INTERFACE_START'
+    EXPORTING
+      i_client           = sy-mandt
+      i_function         = 'C' "B= BDC, C= Call Trans.
+      i_mode             = lv_mode "N – no screen, A – all screen, E – Error –> Mode we use in Call transaction
+      i_update           = 'S' "S:
+      i_keep             = abap_false
+      i_user             = sy-uname
+    EXCEPTIONS
+      client_incorrect   = 1
+      function_invalid   = 2
+      group_name_missing = 3
+      mode_invalid       = 4
+      update_invalid     = 5
+      user_invalid       = 6
+      OTHERS             = 7.
+
+  IF sy-subrc <> 0.
+    CASE sy-subrc.
+      WHEN '1'.
+        RAISE client_incorrect.
+
+      WHEN '2'.
+        RAISE function_invalid.
+
+      WHEN '3'.
+        RAISE group_name_missing.
+
+      WHEN '4'.
+        RAISE mode_invalid.
+
+      WHEN '5'.
+        RAISE update_invalid.
+
+      WHEN '6'.
+        RAISE user_invalid.
+
+      WHEN '7'.
+        RETURN.
+
+    ENDCASE.
+  ENDIF.
+
+  CALL FUNCTION 'POSTING_INTERFACE_CLEARING' "Post with clearing (FB05) using internal posting interface
+    EXPORTING
+      i_auglv                    = 'UMBUCHNG'            " t041a-auglv   Clearing Transaction
+      i_tcode                    = 'FB05'                " sy-tcode      Transaction code
+      i_sgfunct                  = space                 " rfipi-sgfunct  Different FUNCT function
+    IMPORTING
+      e_msgid                    = e_msgid              " sy-msgid      Message ID (only for Call Trans. ..Using)
+      e_msgno                    = e_msgno              " sy-msgno      Message number (only for Call Trans. ..Using)
+      e_msgty                    = e_msgty              " sy-msgty      Message category (only for Call Trans. ..Using)
+      e_msgv1                    = e_msgv1              " sy-msgv1      Message variable 1 (only for Call Trans. ..Using)
+      e_msgv2                    = e_msgv2              " sy-msgv2      Message variable 2 (only for Call Trans. ..Using)
+      e_msgv3                    = e_msgv3              " sy-msgv3      Message variable 3 (only for Call Trans. ..Using)
+      e_msgv4                    = e_msgv4              " sy-msgv4      Message variable 4 (only for Call Trans. ..Using)
+    TABLES
+      t_blntab                   = it_blntab              " blntab        Table of the document numbers (only for Call Trans ..)
+      t_ftclear                  = it_ftclear              " ftclear       Clearing data
+      t_ftpost                   = it_ftpost              " ftpost        Document header and item data
+      t_fttax                    = it_fttax              " fttax         Taxes
+    EXCEPTIONS
+      clearing_procedure_invalid = 1
+      clearing_procedure_missing = 2
+      table_t041a_empty          = 3
+      transaction_code_invalid   = 4
+      amount_format_error        = 5
+      too_many_line_items        = 6
+      company_code_invalid       = 7
+      screen_not_found           = 8
+      no_authorization           = 9
+      OTHERS                     = 10.
+
+  IF sy-subrc <> 0.
+
+    CASE sy-subrc.
+      WHEN '1'.
+        RAISE clearing_procedure_invalid.
+
+      WHEN '2'.
+        RAISE clearing_procedure_missing.
+
+      WHEN '3'.
+        RAISE table_t041a_empty.
+
+      WHEN '4'.
+        RAISE transaction_code_invalid.
+
+      WHEN '5'.
+        RAISE amount_format_error.
+
+      WHEN '6'.
+        RAISE too_many_line_items.
+
+      WHEN '7'.
+        RAISE company_code_invalid.
+
+      WHEN '8'.
+        RAISE screen_not_found.
+
+      WHEN '9'.
+        RAISE no_authorization.
+
+      WHEN '10'.
+        RETURN.
+
+    ENDCASE.
+
+  ENDIF.
+
+*4.After bdc processing.
+  CALL FUNCTION 'POSTING_INTERFACE_END'
+    EXPORTING
+      i_bdcimmed              = 'X'
+    EXCEPTIONS
+      session_not_processable = 1
+      OTHERS                  = 2.
+
+
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+
+    CASE sy-subrc.
+      WHEN '1'.
+        RAISE session_not_processable.
+
+      WHEN '2'.
+        RETURN.
+    ENDCASE.
+  ENDIF.
+
+ENDFUNCTION.
